@@ -5,7 +5,8 @@ import { MockService } from './mockService';
 
 // อ่านค่า Config จาก Environment Variable
 // ถ้าตั้งค่า NEXT_PUBLIC_USE_MOCK=true จะใช้ MockService
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+//const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+const USE_MOCK ='true';
 
 console.log(`[System] Running in ${USE_MOCK ? 'MOCK' : 'PRODUCTION (Google)'} mode`);
 
