@@ -1,0 +1,5 @@
+{
+  "name": "BabyPhotoJournal",
+  "description": "A photo journal application to track baby growth with age calculations, utilizing Google-style aesthetics.",
+  "requestFramePermissions": []
+}
