@@ -2,11 +2,34 @@
 import { JournalEntry, User, BabyProfile, Photo } from '../types';
 import { generateId, calculateAge } from '../utils';
 
+
+
+// Helper to safely get env vars without crashing if import.meta.env is undefined
+const getEnv = (key: string): string => {
+    try {
+        // @ts-ignore - import.meta might be strictly typed
+        return (import.meta.env && import.meta.env[key]) || '';
+    } catch (e) {
+        return '';
+    }
+};
+
+
+
+
+
 // --- การตั้งค่า (CONFIGURATION) ---
 // ใช้ Environment Variables จาก Vercel
 // สำคัญ: หากเพิ่มตัวแปรใน Vercel แล้ว ต้องทำการ REDEPLOY (Build ใหม่) 1 ครั้งเพื่อให้ค่าถูกอ่านเข้ามา
-const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''; 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '';
+//const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''; 
+//const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '';
+
+
+
+const CLIENT_ID = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'); 
+const API_KEY =  getEnv('NEXT_PUBLIC_GOOGLE_API_KEY');
+
+
 
 // Scopes ที่ต้องขออนุญาต: Drive (จัดการไฟล์), Sheets (จัดการข้อมูล)
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
