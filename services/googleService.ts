@@ -1,3 +1,4 @@
+
 import { JournalEntry, User, BabyProfile, Photo } from '../types';
 import { generateId, calculateAge } from '../utils';
 
@@ -20,14 +21,12 @@ const getEnv = (key: string): string => {
 };
 
 // State: เก็บค่า Config
-// หมายเหตุ: ใช้ชื่อตัวแปร VITE_ ตามโค้ดตัวอย่าง 
-// (หากใช้ Next.js อย่าลืมเปลี่ยนใน Vercel เป็น VITE_ หรือแก้ตรงนี้เป็น NEXT_PUBLIC_)
 let currentConfig: GoogleConfig = {
     clientId: getEnv('VITE_GOOGLE_CLIENT_ID'),
     apiKey: getEnv('VITE_GOOGLE_API_KEY')
 };
 
-// Export ฟังก์ชันสำหรับ Inject Config จากภายนอก (ถ้าต้องการ)
+// Export ฟังก์ชันสำหรับ Inject Config จากภายนอก
 export const setGoogleConfig = (config: GoogleConfig) => {
     currentConfig = config;
 };
@@ -45,25 +44,22 @@ const DISCOVERY_DOCS = [
   'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest'
 ];
 
-// ชื่อไฟล์และโฟลเดอร์ที่จะสร้าง (ยังคง Logic เดิมของโค้ดจริงไว้)
 const APP_FOLDER_NAME = 'BabyPhotoJournal_Data';
 const SPREADSHEET_NAME = 'BabyJournal_Database';
 
-// Variables สำหรับสถานะการโหลด
 let gapiInited = false;
 let gisInited = false;
 
 
-// --- 3. GoogleService (Updated) ---
+// --- 3. GoogleService ---
 
 export const GoogleService = {
   tokenClient: null as any,
 
-  // 1. เริ่มต้นระบบ (Initialize)
+  // 1. Init
   initClient: async (): Promise<void> => {
     console.log("Initializing Google Client...");
     
-    // ใช้ค่าจาก currentConfig แทน const
     if (!isGoogleConfigured()) {
       console.error("Missing Config:", currentConfig);
       throw new Error('ไม่พบการตั้งค่า Environment Variables (VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_API_KEY)');
@@ -92,7 +88,7 @@ export const GoogleService = {
         (window as any).gapi.load('client', async () => {
           try {
             await (window as any).gapi.client.init({
-              apiKey: currentConfig.apiKey, // ใช้ apiKey จาก config
+              apiKey: currentConfig.apiKey,
               discoveryDocs: DISCOVERY_DOCS,
             });
             gapiInited = true;
@@ -103,7 +99,7 @@ export const GoogleService = {
         });
 
         GoogleService.tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-          client_id: currentConfig.clientId, // ใช้ clientId จาก config
+          client_id: currentConfig.clientId,
           scope: SCOPES,
           callback: '', 
         });
@@ -115,7 +111,7 @@ export const GoogleService = {
     });
   },
 
-  // 2. ล็อกอิน (Login)
+  // 2. Login
   login: async (): Promise<User> => {
     return new Promise((resolve, reject) => {
       try {
@@ -150,15 +146,10 @@ export const GoogleService = {
     });
   },
 
-  // 3. Setup Folder & Sheet (คงเดิม)
+  // 3. Setup Storage
   setupStorage: async (): Promise<{ folderId: string, spreadsheetId: string }> => {
     try {
-      // (คง Logic เดิม: เช็คว่ามีโฟลเดอร์/ไฟล์ไหม ถ้าไม่มีให้สร้าง)
       let folderId = localStorage.getItem('bpj_folder_id') || '';
-      
-      // A. Check Folder (ถ้ายังไม่มีใน LocalStorage หรืออยากเช็คชัวร์ๆ ก็ยิง API)
-      // *เพื่อความสั้นขอละ code logic เดิมไว้ (ถือว่าเหมือนเดิม)*
-      // ...แต่ถ้าจะเอาให้ชัวร์ ผมใส่ Code เต็มส่วนนี้ให้เลยกันพลาดครับ
       
       if(!folderId) {
           const folderRes = await (window as any).gapi.client.drive.files.list({
@@ -197,13 +188,11 @@ export const GoogleService = {
               },
             });
             spreadsheetId = createSheetRes.result.spreadsheetId;
-            // ย้ายเข้าโฟลเดอร์
             await (window as any).gapi.client.drive.files.update({
               fileId: spreadsheetId,
               addParents: folderId,
               fields: 'id, parents',
             });
-            // สร้าง Header
             await (window as any).gapi.client.sheets.spreadsheets.values.batchUpdate({
               spreadsheetId,
               resource: {
@@ -226,7 +215,23 @@ export const GoogleService = {
     }
   },
 
-  // 4-7. GetEntries, GetProfile, SaveProfile, GetTags (คงเดิม ไม่ต้องแก้ เพราะใช้ LocalStorage/API)
+  // Helper: แก้ไข URL รูปภาพให้แสดงผลได้
+  fixPhotoUrl: (photo: Photo): Photo => {
+    // ถ้าเป็น URL แบบเก่า (lh3) หรือไม่มี sz ให้เปลี่ยนเป็น thumbnail link ที่ถูกต้อง
+    if (photo.url.includes('lh3.googleusercontent.com/d/') || !photo.url.includes('sz=')) {
+        // ดึง ID ออกมา
+        let id = photo.id;
+        // กรณีที่ ID ใน Photo object ไม่ตรง (เผื่อไว้) แต่ปกติเราเก็บ ID แยกอยู่แล้ว
+        return {
+            ...photo,
+            // ใช้ URL ที่บังคับขนาดภาพ 1024px (sz=w1024) ซึ่งเข้าถึงได้ง่ายกว่าสำหรับเจ้าของไฟล์
+            url: `https://drive.google.com/thumbnail?id=${id}&sz=w1024`
+        };
+    }
+    return photo;
+  },
+
+  // 4. Get Entries
   getEntries: async (): Promise<JournalEntry[]> => {
      const spreadsheetId = localStorage.getItem('bpj_sheet_id');
      if (!spreadsheetId) return [];
@@ -235,13 +240,19 @@ export const GoogleService = {
      });
      const rows = response.result.values || [];
      const birthDate = await GoogleService.getBirthDateOnly();
+     
      return rows.map((row: any[]) => {
        const date = row[1];
        const ageAtTime = birthDate ? calculateAge(birthDate, date) : { years: 0, months: 0, days: 0 };
+       
+       let photos: Photo[] = row[4] ? JSON.parse(row[4]) : [];
+       // Fix URLs on load
+       photos = photos.map(GoogleService.fixPhotoUrl);
+
        return {
          id: row[0], date: date, notes: row[2] || '',
          tags: row[3] ? JSON.parse(row[3]) : [],
-         photos: row[4] ? JSON.parse(row[4]) : [],
+         photos: photos,
          ageAtTime
        };
      }).reverse();
@@ -252,6 +263,7 @@ export const GoogleService = {
     return profile ? profile.birthDate : null;
   },
 
+  // 5. Get Profile
   getProfile: async (): Promise<BabyProfile | null> => {
     const spreadsheetId = localStorage.getItem('bpj_sheet_id');
     if (!spreadsheetId) return null;
@@ -263,6 +275,7 @@ export const GoogleService = {
     return null;
   },
 
+  // 6. Save Profile
   saveProfile: async (profile: BabyProfile): Promise<void> => {
     const spreadsheetId = localStorage.getItem('bpj_sheet_id');
     await (window as any).gapi.client.sheets.spreadsheets.values.update({
@@ -271,6 +284,7 @@ export const GoogleService = {
     });
   },
 
+  // 7. Get Tags
   getTags: async (): Promise<string[]> => {
     const spreadsheetId = localStorage.getItem('bpj_sheet_id');
     if (!spreadsheetId) return [];
@@ -289,7 +303,7 @@ export const GoogleService = {
      });
   },
 
-  // 8. Upload File (แก้ไข Syntax Error ให้แล้วครับ: ${data.id})
+  // 8. Upload File (แก้ไข URL)
   uploadFile: async (file: File): Promise<Photo> => {
     const folderId = localStorage.getItem('bpj_folder_id');
     const metadata = { name: file.name, mimeType: file.type, parents: [folderId] };
@@ -298,7 +312,7 @@ export const GoogleService = {
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', file);
 
-    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webContentLink,webViewLink,thumbnailLink', {
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,thumbnailLink', {
       method: 'POST',
       headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
       body: form,
@@ -306,15 +320,18 @@ export const GoogleService = {
     
     const data = await res.json();
     
-    // Fixed Syntax Error here: added $ before {data.id}
+    // ใช้ URL แบบ Thumbnail Link ขนาดใหญ่ (sz=w1024) แทน lh3.../d/
+    // วิธีนี้ช่วยให้แสดงรูปภาพได้แม้ไฟล์จะเป็น Private (ตราบใดที่ User Login Browser อยู่)
+    const robustUrl = `https://drive.google.com/thumbnail?id=${data.id}&sz=w1024`;
+
     return {
       id: data.id,
-      url: `https://lh3.googleusercontent.com/d/${data.id}`, // ปรับ URL เป็นแบบ Direct Link มาตรฐาน (หรือใช้ webViewLink ก็ได้)
+      url: robustUrl, 
       mimeType: file.type
     };
   },
 
-  // 9. Save Entry (คงเดิม)
+  // 9. Save Entry
   saveEntry: async (entryData: any, birthDate: string, localPhotoFiles: File[]): Promise<JournalEntry> => {
     const spreadsheetId = localStorage.getItem('bpj_sheet_id');
     const newPhotos: Photo[] = [];
@@ -322,7 +339,10 @@ export const GoogleService = {
        const photo = await GoogleService.uploadFile(file);
        newPhotos.push(photo);
     }
-    const finalPhotos = [...(entryData.photos || []), ...newPhotos];
+    // รวมรูปเก่า (ที่ไม่ใช่ temp) กับรูปใหม่
+    const oldPhotos = (entryData.photos || []).filter((p: Photo) => !p.id.startsWith('temp-'));
+    const finalPhotos = [...oldPhotos, ...newPhotos];
+    
     const ageAtTime = calculateAge(birthDate, entryData.date);
     
     const newEntry: JournalEntry = {
@@ -358,7 +378,7 @@ export const GoogleService = {
     return newEntry;
   },
 
-  // 10. Delete Entry (คงเดิม)
+  // 10. Delete Entry
   deleteEntry: async (id: string): Promise<void> => {
     const spreadsheetId = localStorage.getItem('bpj_sheet_id');
     const response = await (window as any).gapi.client.sheets.spreadsheets.values.get({
